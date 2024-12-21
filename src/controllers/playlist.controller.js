@@ -3,38 +3,31 @@ import {Playlist} from "../models/playlist.model.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
+import { Video } from "../models/video.model.js"
 
 
 const createPlaylist = asyncHandler(async (req, res) => {
-    const { name, description } = req.body;
+  const {name, description} = req.body
 
-    //TODO: create playlist
-    if (!name || !description) {
-      throw new ApiError(400, "All Fields are required");
-    }
-  
-    const existingPlaylist = await Playlist.findOne({
-      $and: [{ name: name }, { owner: req.user._id }],
-    });
-  
-    if (existingPlaylist) {
-      throw new ApiError(400, "Playlist with this name already exists");
-    }
-  
-    const playlist = await Playlist.create({
+  if (!name || name.trim() === "") {
+      throw new ApiError(400, "Name is required");
+  }
+
+  const playlist = await Playlist.create({
       name,
-      description,
-      owner: req.user._id,
-    });
-  
-     
-    if (!playlist) {
+      description: description || "",
+      owner: req.user?._id,
+  });
+
+  //TODO: create playlist
+
+  if (!playlist) {
       throw new ApiError(500, "Error while creating playlist");
-    }
-  
-    return res
+  }
+
+  return res
       .status(200)
-      .json(new ApiResponse(200, playlist, "Playlist Created"));
+      .json(new ApiResponse(200, playlist, "Playlist created successfully"));
 })
 
 const getUserPlaylists = asyncHandler(async (req, res) => {
@@ -124,7 +117,7 @@ const getUserPlaylists = asyncHandler(async (req, res) => {
           description: 1,
         },
       },
-    ]).toArray();
+    ])
     if (userPlaylists.length === 0) {
       throw new ApiError(504, "No Playlists found");
     }
@@ -236,44 +229,28 @@ const getPlaylistById = asyncHandler(async (req, res) => {
 })
 
 const addVideoToPlaylist = asyncHandler(async (req, res) => {
-    const { playlistId, videoId } = req.params;
+  const {playlistId, videoId} = req.params
+
   if (!isValidObjectId(playlistId) || !isValidObjectId(videoId)) {
-    throw new ApiError(400, "Invalid Playlist or Video ID");
+      throw new ApiError(400, "Invalid playlist and video ID")
   }
 
-  const playlist = await Playlist.findById(playlistId);
+  const playlist = await Playlist.findById(playlistId)
+
   if (!playlist) {
-    throw new ApiError(400, "No Playlist found");
-  }
-  if (playlist.owner.toString() !== req.user._id) {
-    throw new ApiError(403, "You are not allowed to modify this playlist");
+      throw new ApiError(404, "PlayList not found")
   }
 
-  const videoExists = playlist.videos.filter(
-    (video) => video.toString() === videoId
-  );
-
-  if (videoExists.length > 0) {
-    throw new ApiError(400, "Video already in the Playlist");
+  if (playlist.videos.includes(videoId)) {
+      throw new ApiError(400, "Video already in playlist")
   }
 
-  const addVideo = await Playlist.findByIdAndUpdate(
-    playlistId,
-    {
-      $set: {
-        videos: [...playlist.videos, videoId],
-      },
-    },
-    { new: true }
-  );
+  playlist.videos.push(videoId)
+  await playlist.save()
 
-  if (!addVideo) {
-    throw new ApiError(500, "Error while adding video to playlist");
-  }
-
-  return res
-    .status(200)
-    .json(new ApiResponse(200, addVideo, "Video Added to Playlist"));
+  res
+      .status(200)
+      .json(new ApiResponse(200, playlist, "Video add successfully"))
 })
 
 const removeVideoFromPlaylist = asyncHandler(async (req, res) => {
@@ -366,7 +343,7 @@ const updatePlaylist = asyncHandler(async (req, res) => {
     throw new ApiError(400, "No Playlist found with this ID");
   }
 
-  if (playlist.owner.toString() !== req.user._id) {
+  if (playlist.owner.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "You are not allowed to modify this playlist");
   }
 
